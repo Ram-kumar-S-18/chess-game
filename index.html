@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flat Chessboard.js</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+
+    <style>
+        body {
+            background: radial-gradient(circle at 50% 10%, #3a4252 0%, #1e222b 100%);
+            color: #f5f6fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Typography */
+        .title-text {
+            font-size: 2rem;
+            font-weight: 300;
+            color: #e5e9f0;
+            margin-bottom: 0.25rem;
+            letter-spacing: 0.5px;
+        }
+        .subtitle-text {
+            font-size: 0.85rem;
+            color: #818b9c;
+            margin-bottom: 0.5rem;
+        }
+        .status-text {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: #f1c40f;
+            min-height: 1.5rem;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        /* Inner Board Styling */
+        #board2 {
+            box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        /* Highlight styling for valid moves */
+        .highlight {
+            position: relative;
+        }
+        .highlight::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 30%;
+            height: 30%;
+            border-radius: 50%;
+            background-color: rgba(20, 85, 30, 0.6);
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .selected-square {
+            background-color: rgba(155, 199, 0, 0.6) !important;
+        }
+
+        /* 3D Wooden Control Bar */
+        .wood-panel {
+            background: linear-gradient(180deg, #96612d 0%, #683d16 100%);
+            border-radius: 8px;
+            padding: 16px 32px 14px;
+            box-shadow: 0px 10px 20px rgba(0,0,0,0.6), inset 0px 2px 3px rgba(255,255,255,0.15);
+            position: relative;
+            display: inline-flex;
+            gap: 16px;
+        }
+        .wood-panel::before {
+            content: '';
+            position: absolute;
+            top: 10px; 
+            left: 10px; 
+            right: 10px; 
+            height: 3px;
+            background: #2a1605;
+            border-radius: 2px;
+            box-shadow: inset 0px 1px 2px rgba(0,0,0,0.9), 0px 1px 1px rgba(255,255,255,0.15);
+        }
+        .wood-btn {
+            background: #47260e;
+            color: #dcb68a;
+            border: 1px solid #2a1605;
+            padding: 6px 20px;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            transition: all 0.15s ease;
+            position: relative;
+            z-index: 10;
+            box-shadow: inset 0px 1px 1px rgba(255,255,255,0.1), 0px 2px 4px rgba(0,0,0,0.4);
+            cursor: pointer;
+        }
+        .wood-btn:hover {
+            background: #563013;
+            color: #ffffff;
+        }
+        .wood-btn:active {
+            box-shadow: inset 0px 2px 5px rgba(0,0,0,0.7);
+            transform: translateY(1px);
+        }
+
+        /* Side Panels (Graveyards & History) */
+        .graveyard, .history-panel {
+            background-color: #21252b;
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            border-radius: 12px;
+            padding: 14px 10px;
+            box-shadow: 0 12px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05);
+            height: 512px; /* Fixed height matching board exactly */
+        }
+
+        /* Graveyard Styling */
+        .graveyard {
+            width: 110px;
+            display: flex;
+            flex-wrap: wrap;
+            align-content: flex-start;
+            gap: 4px;
+        }
+        
+        /* Move History Sidebar Styling */
+        .history-panel {
+            width: 170px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .graveyard-title, .history-title {
+            width: 100%;
+            text-align: center;
+            font-size: 11px;
+            color: #6f8fac;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            font-weight: 600;
+            flex-shrink: 0;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+        }
+
+        .history-list {
+            flex-grow: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-size: 0.8rem;
+            color: #9ba4b5;
+        }
+        /* Custom scrollbar for history */
+        .history-list::-webkit-scrollbar { width: 5px; }
+        .history-list::-webkit-scrollbar-track { background: transparent; }
+        .history-list::-webkit-scrollbar-thumb { background: #3b4252; border-radius: 3px; }
+        .history-row {
+            display: flex;
+            padding: 6px 6px;
+            background: rgba(0, 0, 0, 0.15);
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+        .history-row:hover {
+            background: rgba(0, 0, 0, 0.25);
+        }
+        .history-row span {
+            flex: 1;
+            text-align: left;
+        }
+        .history-num {
+            flex: 0 0 24px !important;
+            color: #58657a !important;
+            font-weight: 600;
+        }
+        
+        /* Adjusting chessboard notation styling */
+        .numeric-fc462 { font-weight: bold; font-size: 12px; padding-top: 2px; padding-left: 2px; }
+        .alpha-d2270 { font-weight: bold; font-size: 12px; padding-bottom: 2px; padding-right: 2px; }
+    </style>
+</head>
+<body class="h-screen w-screen overflow-hidden flex flex-col items-center justify-between py-4 box-border">
+
+    <!-- Header Section (Flex-none prevents it from shrinking/growing) -->
+    <div class="flex-none text-center">
+        <h1 class="title-text">1v1 Interactive Chess</h1>
+        <p class="subtitle-text">Hover over the board to play. Click pieces to move.</p>
+        <div id="status" class="status-text">White to move</div>
+    </div>
+
+    <!-- Main Game Area (Flex-1 allows it to take remaining space, items-center vertically centers it) -->
+    <div class="flex-1 flex items-center justify-center w-full max-w-[1400px] gap-4 px-4 min-h-0">
+        
+        <!-- Left Side: Balances center board -->
+        <div class="flex-1 flex justify-end pr-4">
+            <!-- Left Graveyard (Black pieces defeated go here) -->
+            <div id="black-graveyard" class="graveyard">
+                <div class="graveyard-title">Captured Black</div>
+            </div>
+        </div>
+        
+        <!-- Center Board with Coordinates (Fixed dimensions to ensure fit) -->
+        <div class="flex-none flex flex-col items-end">
+            <div class="flex">
+                <div class="flex flex-col justify-around text-[#818b9c] font-semibold pr-2 select-none text-sm text-center" style="height: 512px; width: 20px;">
+                    <span>8</span><span>7</span><span>6</span><span>5</span><span>4</span><span>3</span><span>2</span><span>1</span>
+                </div>
+                <!-- Board optimized to 512px for clean integer tile sizing (64px) and perfect screen fit -->
+                <div id="board2" style="width: 512px; height: 512px;"></div>
+            </div>
+            <div class="flex justify-around text-[#818b9c] font-semibold pt-2 select-none text-sm" style="width: 512px;">
+                <span style="width: 64px; text-align: center;">a</span>
+                <span style="width: 64px; text-align: center;">b</span>
+                <span style="width: 64px; text-align: center;">c</span>
+                <span style="width: 64px; text-align: center;">d</span>
+                <span style="width: 64px; text-align: center;">e</span>
+                <span style="width: 64px; text-align: center;">f</span>
+                <span style="width: 64px; text-align: center;">g</span>
+                <span style="width: 64px; text-align: center;">h</span>
+            </div>
+        </div>
+
+        <!-- Right Side: Balances center board -->
+        <div class="flex-1 flex justify-start pl-4 gap-4">
+            <!-- Right Graveyard (White pieces defeated go here) -->
+            <div id="white-graveyard" class="graveyard">
+                <div class="graveyard-title">Captured White</div>
+            </div>
+
+            <!-- Move History Sidebar -->
+            <div id="move-history" class="history-panel">
+                <div class="history-title">Move History</div>
+                <div class="history-list" id="history-list"></div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Control Bar (Flex-none anchors it to bottom safely) -->
+    <div class="flex-none mb-2">
+        <div class="wood-panel">
+            <button id="startBtn" class="wood-btn">Restart Game</button>
+            <button id="undoBtn" class="wood-btn">Undo Move</button>
+        </div>
+    </div>
+
+    <script>
+        $(document).ready(function() {
+            var game = new Chess();
+            var $status = $('#status');
+            var selectedSquare = null;
+
+            function clearHighlights () {
+                $('#board2 .square-55d63').removeClass('highlight selected-square');
+                selectedSquare = null;
+            }
+
+            function updateGraveyards() {
+                var history = game.history({ verbose: true });
+                var whiteCaptured = [];
+                var blackCaptured = [];
+                
+                history.forEach(function(m) {
+                    if (m.captured) {
+                        var capturedColor = m.color === 'w' ? 'b' : 'w';
+                        if (capturedColor === 'w') whiteCaptured.push(m.captured);
+                        else blackCaptured.push(m.captured);
+                    }
+                });
+                
+                function renderGraveyard(id, pieces, color) {
+                    var $gy = $(id);
+                    $gy.find('img').remove(); // Keep title intact
+                    pieces.forEach(function(p) {
+                        var pieceTheme = 'https://chessboardjs.com/img/chesspieces/wikipedia/' + color + p.toUpperCase() + '.png';
+                        $gy.append('<img src="' + pieceTheme + '" class="w-10 h-10 object-contain">');
+                    });
+                }
+                
+                renderGraveyard('#white-graveyard', whiteCaptured, 'w');
+                renderGraveyard('#black-graveyard', blackCaptured, 'b');
+            }
+
+            function updateMoveHistory() {
+                var history = game.history({ verbose: true });
+                var $list = $('#history-list');
+                $list.empty();
+                
+                var rows = [];
+                for (var i = 0; i < history.length; i += 2) {
+                    var whiteMove = history[i] ? history[i].from + ' &rarr; ' + history[i].to : '';
+                    var blackMove = history[i+1] ? history[i+1].from + ' &rarr; ' + history[i+1].to : '';
+                    var rowNum = Math.floor(i / 2) + 1;
+                    
+                    rows.push(
+                        '<div class="history-row">' +
+                            '<span class="history-num">' + rowNum + '.</span>' +
+                            '<span>' + whiteMove + '</span>' +
+                            '<span>' + blackMove + '</span>' +
+                        '</div>'
+                    );
+                }
+                
+                $list.html(rows.join(''));
+                // Auto scroll to bottom
+                if ($list[0]) {
+                    $list.scrollTop($list[0].scrollHeight);
+                }
+            }
+
+            function animateCaptureToGraveyard(square, color, pieceType) {
+                var squareEl = $('#board2 .square-' + square);
+                var pieceTheme = 'https://chessboardjs.com/img/chesspieces/wikipedia/' + color + pieceType.toUpperCase() + '.png';
+                
+                var graveyardId = color === 'w' ? '#white-graveyard' : '#black-graveyard';
+                var graveyard = $(graveyardId);
+                
+                // Create invisible placeholder in graveyard to claim layout space
+                var placeholder = $('<img src="' + pieceTheme + '" class="w-10 h-10 opacity-0 object-contain">');
+                graveyard.append(placeholder);
+                
+                var targetOffset = placeholder.offset();
+                
+                var startOffset;
+                var pieceImg = squareEl.find('img');
+                if (pieceImg.length) {
+                    startOffset = pieceImg.offset();
+                    pieceImg.hide(); // Hide instantly to prevent flicker before board re-renders
+                } else {
+                    startOffset = squareEl.offset();
+                }
+                
+                // Absolute clone for animation
+                var clone = $('<img src="' + pieceTheme + '" style="position: absolute; z-index: 9999; pointer-events: none;">');
+                clone.css({
+                    top: startOffset.top,
+                    left: startOffset.left,
+                    width: pieceImg.width() || squareEl.width()
+                });
+                $('body').append(clone);
+                
+                clone.animate({
+                    top: targetOffset.top,
+                    left: targetOffset.left,
+                    width: 40,
+                    height: 40
+                }, 400, 'swing', function() {
+                    placeholder.removeClass('opacity-0');
+                    clone.remove();
+                    updateGraveyards(); // Sync data strictly
+                });
+            }
+
+            function attemptMove(source, target, isDragDrop) {
+                var move = game.move({
+                    from: source,
+                    to: target,
+                    promotion: 'q'
+                });
+
+                if (move === null) return false; // Illegal move
+
+                // Handle Capture Animation
+                if (move.captured) {
+                    var capturedColor = move.color === 'w' ? 'b' : 'w';
+                    var captureSquare = target;
+                    if (move.flags.indexOf('e') !== -1) {
+                        captureSquare = target[0] + source[1]; // En passant square fix
+                    }
+                    animateCaptureToGraveyard(captureSquare, capturedColor, move.captured);
+                }
+
+                updateStatus();
+                updateMoveHistory();
+
+                if (!isDragDrop) {
+                    board2.position(game.fen());
+                }
+                return true;
+            }
+
+            // --- CLICK LOGIC ---
+            $('#board2').on('click', '.square-55d63', function() {
+                if (game.game_over()) return;
+
+                var square = $(this).attr('data-square');
+
+                if (selectedSquare !== null) {
+                    if (selectedSquare === square) {
+                        clearHighlights();
+                        return;
+                    }
+
+                    var piece = game.get(square);
+                    if (piece && piece.color === game.turn()) {
+                        selectSquare(square);
+                        return;
+                    }
+
+                    var success = attemptMove(selectedSquare, square, false);
+                    if (success) {
+                        clearHighlights();
+                    } else {
+                        clearHighlights();
+                    }
+                } else {
+                    var piece = game.get(square);
+                    if (piece && piece.color === game.turn()) {
+                        selectSquare(square);
+                    }
+                }
+            });
+
+            function selectSquare(square) {
+                clearHighlights();
+                selectedSquare = square;
+                $('#board2 .square-' + square).addClass('selected-square');
+
+                var moves = game.moves({
+                    square: square,
+                    verbose: true
+                });
+
+                for (var i = 0; i < moves.length; i++) {
+                    $('#board2 .square-' + moves[i].to).addClass('highlight');
+                }
+            }
+
+            function updateStatus () {
+                var statusHTML = '';
+                var moveColor = game.turn() === 'b' ? 'Black' : 'White';
+
+                if (game.in_checkmate()) {
+                    statusHTML = 'Game over, ' + moveColor + ' is in checkmate.';
+                } else if (game.in_draw()) {
+                    statusHTML = 'Game over, drawn position';
+                } else {
+                    statusHTML = moveColor + ' to move';
+                    if (game.in_check()) {
+                        statusHTML += ', ' + moveColor + ' is in check';
+                    }
+                }
+                $status.html(statusHTML);
+            }
+
+            var board2 = Chessboard('board2', {
+                draggable: false, // Enforces click-to-move only
+                position: 'start',
+                showNotation: false, // Turned off internal notation to use external coordinates
+                pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
+            });
+
+            // Adjust board explicitly right after init to guarantee proper rendering size
+            board2.resize(); 
+
+            updateStatus();
+            updateGraveyards();
+            updateMoveHistory();
+
+            $('#startBtn').on('click', function() {
+                game.reset();
+                board2.start();
+                clearHighlights();
+                updateStatus();
+                updateGraveyards();
+                updateMoveHistory();
+            });
+            
+            $('#undoBtn').on('click', function() {
+                game.undo();
+                board2.position(game.fen());
+                clearHighlights();
+                updateStatus();
+                updateGraveyards();
+                updateMoveHistory();
+            });
+
+            // Handle window resize dynamically to keep layout intact
+            $(window).resize(board2.resize);
+        });
+    </script>
+</body>
+</html>
