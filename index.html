@@ -1,27 +1,368 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Flat Chessboard.js</title>
-    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description"
+        content="Chess Master — Play chess against AI, challenge friends online via WebRTC, or play local 1v1. Three AI difficulty levels. Free, no sign-up required.">
+    <meta name="theme-color" content="#1e222b">
+    <meta property="og:title" content="Chess Master — Play AI, Friends & Local">
+    <meta property="og:description" content="Free online chess. Play AI, invite friends, or play local 1v1.">
+    <meta property="og:type" content="website">
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♚</text></svg>">
+    <title>Chess Master — Play AI, Friends & Local</title>
+
     <script src="https://cdn.tailwindcss.com"></script>
-    
+
     <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+    <!-- PeerJS for WebRTC online multiplayer -->
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <!-- Google Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+        rel="stylesheet">
 
     <style>
+        * {
+            box-sizing: border-box;
+        }
+
         body {
             background: radial-gradient(circle at 50% 10%, #3a4252 0%, #1e222b 100%);
             color: #f5f6fa;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
             padding: 0;
         }
 
-        /* Typography */
+        /* ===== MAIN MENU ===== */
+        .menu-overlay {
+            position: fixed;
+            inset: 0;
+            background: radial-gradient(ellipse at 50% 30%, #2a3040 0%, #12151c 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            transition: opacity 0.5s ease, visibility 0.5s ease;
+        }
+
+        .menu-overlay.hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        .menu-logo {
+            font-size: 3.2rem;
+            font-weight: 900;
+            letter-spacing: -1px;
+            background: linear-gradient(135deg, #f1c40f 0%, #e67e22 50%, #e74c3c 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.25rem;
+            text-shadow: none;
+        }
+
+        .menu-subtitle {
+            color: #6b7a8d;
+            font-size: 0.95rem;
+            margin-bottom: 2.5rem;
+            font-weight: 400;
+        }
+
+        .mode-cards {
+            display: flex;
+            gap: 24px;
+            flex-wrap: wrap;
+            justify-content: center;
+            max-width: 900px;
+            padding: 0 20px;
+        }
+
+        .mode-card {
+            width: 250px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 36px 24px 28px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .mode-card::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.06), transparent 70%);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .mode-card:hover {
+            transform: translateY(-8px) scale(1.02);
+            border-color: rgba(255, 255, 255, 0.15);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(241, 196, 15, 0.08);
+        }
+
+        .mode-card:hover::before {
+            opacity: 1;
+        }
+
+        .mode-icon {
+            font-size: 3rem;
+            margin-bottom: 16px;
+            display: block;
+        }
+
+        .mode-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #e5e9f0;
+            margin-bottom: 8px;
+        }
+
+        .mode-desc {
+            font-size: 0.82rem;
+            color: #6b7a8d;
+            line-height: 1.5;
+        }
+
+        /* AI Difficulty Sub-Menu */
+        .submenu {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+            animation: fadeInUp 0.4s ease;
+        }
+
+        .submenu.active {
+            display: flex;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .diff-title {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #e5e9f0;
+            margin-bottom: 4px;
+        }
+
+        .diff-subtitle {
+            font-size: 0.85rem;
+            color: #6b7a8d;
+            margin-bottom: 16px;
+        }
+
+        .diff-pills {
+            display: flex;
+            gap: 14px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .diff-pill {
+            padding: 14px 28px;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            border: 2px solid transparent;
+            min-width: 160px;
+            text-align: center;
+        }
+
+        .diff-pill.beginner {
+            background: rgba(46, 204, 113, 0.12);
+            color: #2ecc71;
+            border-color: rgba(46, 204, 113, 0.3);
+        }
+
+        .diff-pill.beginner:hover {
+            background: rgba(46, 204, 113, 0.25);
+            transform: scale(1.05);
+        }
+
+        .diff-pill.intermediate {
+            background: rgba(241, 196, 15, 0.12);
+            color: #f1c40f;
+            border-color: rgba(241, 196, 15, 0.3);
+        }
+
+        .diff-pill.intermediate:hover {
+            background: rgba(241, 196, 15, 0.25);
+            transform: scale(1.05);
+        }
+
+        .diff-pill.professional {
+            background: rgba(231, 76, 60, 0.12);
+            color: #e74c3c;
+            border-color: rgba(231, 76, 60, 0.3);
+        }
+
+        .diff-pill.professional:hover {
+            background: rgba(231, 76, 60, 0.25);
+            transform: scale(1.05);
+        }
+
+        .diff-pill .pill-sub {
+            display: block;
+            font-size: 0.72rem;
+            font-weight: 400;
+            opacity: 0.7;
+            margin-top: 4px;
+        }
+
+        /* Online Room Sub-Menu */
+        .room-panel {
+            text-align: center;
+        }
+
+        .room-panel input {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 10px;
+            padding: 12px 20px;
+            color: #f5f6fa;
+            font-size: 1.6rem;
+            font-weight: 700;
+            letter-spacing: 8px;
+            text-align: center;
+            width: 240px;
+            text-transform: uppercase;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        .room-panel input:focus {
+            border-color: #f1c40f;
+        }
+
+        .room-panel input::placeholder {
+            color: #4a5568;
+            letter-spacing: 4px;
+            font-size: 1rem;
+            font-weight: 400;
+        }
+
+        .room-btns {
+            display: flex;
+            gap: 12px;
+            margin-top: 16px;
+            justify-content: center;
+        }
+
+        .room-btn {
+            padding: 12px 28px;
+            border-radius: 10px;
+            font-weight: 700;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            border: none;
+        }
+
+        .room-btn.create {
+            background: linear-gradient(135deg, #f1c40f, #e67e22);
+            color: #1a1a2e;
+        }
+
+        .room-btn.create:hover {
+            transform: scale(1.05);
+            box-shadow: 0 8px 24px rgba(241, 196, 15, 0.3);
+        }
+
+        .room-btn.join {
+            background: rgba(255, 255, 255, 0.08);
+            color: #e5e9f0;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+
+        .room-btn.join:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: scale(1.05);
+        }
+
+        .room-status {
+            margin-top: 16px;
+            font-size: 0.9rem;
+            color: #6b7a8d;
+            min-height: 1.5rem;
+        }
+
+        .room-status.connected {
+            color: #2ecc71;
+        }
+
+        .room-status.error {
+            color: #e74c3c;
+        }
+
+        .room-status.waiting {
+            color: #f1c40f;
+        }
+
+        .room-code-display {
+            font-size: 2.2rem;
+            font-weight: 900;
+            letter-spacing: 10px;
+            color: #f1c40f;
+            margin: 12px 0;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .room-code-display:hover {
+            color: #e67e22;
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: #a0aec0;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 24px;
+            padding: 10px 24px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.25s ease;
+        }
+
+        .back-link:hover {
+            color: #f5f6fa;
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        /* ===== GAME SCREEN ===== */
         .title-text {
             font-size: 2rem;
             font-weight: 300;
@@ -29,30 +370,67 @@
             margin-bottom: 0.25rem;
             letter-spacing: 0.5px;
         }
+
         .subtitle-text {
             font-size: 0.85rem;
             color: #818b9c;
             margin-bottom: 0.5rem;
         }
+
         .status-text {
             font-size: 1.15rem;
             font-weight: 700;
             color: #f1c40f;
             min-height: 1.5rem;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
         }
 
-        /* Inner Board Styling */
+        .mode-badge {
+            display: inline-block;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 6px;
+        }
+
+        .mode-badge.ai-beginner {
+            background: rgba(46, 204, 113, 0.15);
+            color: #2ecc71;
+        }
+
+        .mode-badge.ai-intermediate {
+            background: rgba(241, 196, 15, 0.15);
+            color: #f1c40f;
+        }
+
+        .mode-badge.ai-professional {
+            background: rgba(231, 76, 60, 0.15);
+            color: #e74c3c;
+        }
+
+        .mode-badge.online {
+            background: rgba(52, 152, 219, 0.15);
+            color: #3498db;
+        }
+
+        .mode-badge.local {
+            background: rgba(155, 89, 182, 0.15);
+            color: #9b59b6;
+        }
+
         #board2 {
-            box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
             border-radius: 4px;
             overflow: hidden;
         }
 
-        /* Highlight styling for valid moves */
         .highlight {
             position: relative;
         }
+
         .highlight::after {
             content: '';
             position: absolute;
@@ -71,27 +449,28 @@
             background-color: rgba(155, 199, 0, 0.6) !important;
         }
 
-        /* 3D Wooden Control Bar */
         .wood-panel {
             background: linear-gradient(180deg, #96612d 0%, #683d16 100%);
             border-radius: 8px;
             padding: 16px 32px 14px;
-            box-shadow: 0px 10px 20px rgba(0,0,0,0.6), inset 0px 2px 3px rgba(255,255,255,0.15);
+            box-shadow: 0px 10px 20px rgba(0, 0, 0, 0.6), inset 0px 2px 3px rgba(255, 255, 255, 0.15);
             position: relative;
             display: inline-flex;
             gap: 16px;
         }
+
         .wood-panel::before {
             content: '';
             position: absolute;
-            top: 10px; 
-            left: 10px; 
-            right: 10px; 
+            top: 10px;
+            left: 10px;
+            right: 10px;
             height: 3px;
             background: #2a1605;
             border-radius: 2px;
-            box-shadow: inset 0px 1px 2px rgba(0,0,0,0.9), 0px 1px 1px rgba(255,255,255,0.15);
+            box-shadow: inset 0px 1px 2px rgba(0, 0, 0, 0.9), 0px 1px 1px rgba(255, 255, 255, 0.15);
         }
+
         .wood-btn {
             background: #47260e;
             color: #dcb68a;
@@ -103,29 +482,30 @@
             transition: all 0.15s ease;
             position: relative;
             z-index: 10;
-            box-shadow: inset 0px 1px 1px rgba(255,255,255,0.1), 0px 2px 4px rgba(0,0,0,0.4);
+            box-shadow: inset 0px 1px 1px rgba(255, 255, 255, 0.1), 0px 2px 4px rgba(0, 0, 0, 0.4);
             cursor: pointer;
         }
+
         .wood-btn:hover {
             background: #563013;
             color: #ffffff;
         }
+
         .wood-btn:active {
-            box-shadow: inset 0px 2px 5px rgba(0,0,0,0.7);
+            box-shadow: inset 0px 2px 5px rgba(0, 0, 0, 0.7);
             transform: translateY(1px);
         }
 
-        /* Side Panels (Graveyards & History) */
-        .graveyard, .history-panel {
+        .graveyard,
+        .history-panel {
             background-color: #21252b;
             border: 1px solid rgba(255, 255, 255, 0.03);
             border-radius: 12px;
             padding: 14px 10px;
-            box-shadow: 0 12px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05);
-            height: 512px; /* Fixed height matching board exactly */
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            height: var(--board-size, 440px);
         }
 
-        /* Graveyard Styling */
         .graveyard {
             width: 110px;
             display: flex;
@@ -133,15 +513,15 @@
             align-content: flex-start;
             gap: 4px;
         }
-        
-        /* Move History Sidebar Styling */
+
         .history-panel {
             width: 170px;
             display: flex;
             flex-direction: column;
         }
 
-        .graveyard-title, .history-title {
+        .graveyard-title,
+        .history-title {
             width: 100%;
             text-align: center;
             font-size: 11px;
@@ -151,7 +531,7 @@
             letter-spacing: 1.5px;
             font-weight: 600;
             flex-shrink: 0;
-            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
         }
 
         .history-list {
@@ -163,10 +543,20 @@
             font-size: 0.8rem;
             color: #9ba4b5;
         }
-        /* Custom scrollbar for history */
-        .history-list::-webkit-scrollbar { width: 5px; }
-        .history-list::-webkit-scrollbar-track { background: transparent; }
-        .history-list::-webkit-scrollbar-thumb { background: #3b4252; border-radius: 3px; }
+
+        .history-list::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        .history-list::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .history-list::-webkit-scrollbar-thumb {
+            background: #3b4252;
+            border-radius: 3px;
+        }
+
         .history-row {
             display: flex;
             padding: 6px 6px;
@@ -174,227 +564,1598 @@
             border-radius: 4px;
             transition: background 0.2s;
         }
+
         .history-row:hover {
             background: rgba(0, 0, 0, 0.25);
         }
+
         .history-row span {
             flex: 1;
             text-align: left;
         }
+
         .history-num {
             flex: 0 0 24px !important;
             color: #58657a !important;
             font-weight: 600;
         }
-        
-        /* Adjusting chessboard notation styling */
-        .numeric-fc462 { font-weight: bold; font-size: 12px; padding-top: 2px; padding-left: 2px; }
-        .alpha-d2270 { font-weight: bold; font-size: 12px; padding-bottom: 2px; padding-right: 2px; }
+
+        .numeric-fc462 {
+            font-weight: bold;
+            font-size: 12px;
+            padding-top: 2px;
+            padding-left: 2px;
+        }
+
+        .alpha-d2270 {
+            font-weight: bold;
+            font-size: 12px;
+            padding-bottom: 2px;
+            padding-right: 2px;
+        }
+
+        /* Thinking indicator */
+        .thinking-indicator {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            color: #f1c40f;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        .thinking-indicator.active {
+            display: inline-flex;
+        }
+
+        .thinking-dots span {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #f1c40f;
+            animation: bounce 1.4s infinite both;
+        }
+
+        .thinking-dots span:nth-child(2) {
+            animation-delay: 0.16s;
+        }
+
+        .thinking-dots span:nth-child(3) {
+            animation-delay: 0.32s;
+        }
+
+        @keyframes bounce {
+
+            0%,
+            80%,
+            100% {
+                transform: scale(0);
+            }
+
+            40% {
+                transform: scale(1);
+            }
+        }
+
+        /* Board lock overlay */
+        .board-lock {
+            position: absolute;
+            inset: 0;
+            z-index: 50;
+            cursor: not-allowed;
+            display: none;
+        }
+
+        .board-lock.active {
+            display: block;
+        }
+
+        #game-screen {
+            display: none;
+        }
+
+        #game-screen.active {
+            display: flex;
+        }
+
+        /* ===== CHESS TIMER ===== */
+        .timer-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: var(--board-size, 440px);
+            padding: 6px 0;
+        }
+
+        .timer-player {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .timer-label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #6b7a8d;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .timer-clock {
+            font-family: 'Inter', monospace;
+            font-size: 1.3rem;
+            font-weight: 800;
+            padding: 6px 16px;
+            border-radius: 8px;
+            min-width: 80px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .timer-clock.white-timer {
+            background: rgba(255, 255, 255, 0.08);
+            color: #d4d8e0;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .timer-clock.black-timer {
+            background: rgba(0, 0, 0, 0.3);
+            color: #a0aec0;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .timer-clock.active-timer {
+            box-shadow: 0 0 12px rgba(241, 196, 15, 0.25);
+            border-color: rgba(241, 196, 15, 0.4);
+            color: #f1c40f;
+        }
+
+        .timer-clock.low-time {
+            color: #e74c3c !important;
+            border-color: rgba(231, 76, 60, 0.5) !important;
+            box-shadow: 0 0 12px rgba(231, 76, 60, 0.3) !important;
+            animation: timerPulse 1s ease-in-out infinite;
+        }
+
+        @keyframes timerPulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.6;
+            }
+        }
+
+        .timer-container {
+            display: none;
+        }
+
+        .timer-container.active {
+            display: block;
+        }
+
+        /* ===== GAME OVER POPUP ===== */
+        .gameover-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(6px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.4s ease, visibility 0.4s ease;
+        }
+
+        .gameover-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .gameover-card {
+            background: linear-gradient(145deg, #1e2530 0%, #151920 100%);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 24px;
+            padding: 48px 56px 40px;
+            text-align: center;
+            max-width: 420px;
+            width: 90%;
+            box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6), 0 0 60px rgba(241, 196, 15, 0.08);
+            transform: scale(0.8) translateY(30px);
+            transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .gameover-overlay.active .gameover-card {
+            transform: scale(1) translateY(0);
+        }
+
+        .gameover-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: conic-gradient(from 0deg, transparent, rgba(241, 196, 15, 0.03), transparent, rgba(231, 76, 60, 0.03), transparent);
+            animation: rotateGlow 8s linear infinite;
+        }
+
+        @keyframes rotateGlow {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .gameover-emoji {
+            font-size: 4rem;
+            margin-bottom: 12px;
+            display: block;
+            position: relative;
+            z-index: 1;
+            animation: popIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.2s both;
+        }
+
+        @keyframes popIn {
+            from {
+                transform: scale(0) rotate(-20deg);
+                opacity: 0;
+            }
+
+            to {
+                transform: scale(1) rotate(0deg);
+                opacity: 1;
+            }
+        }
+
+        .gameover-title {
+            font-size: 1.8rem;
+            font-weight: 800;
+            margin-bottom: 8px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .gameover-title.win {
+            color: #f1c40f;
+        }
+
+        .gameover-title.lose {
+            color: #e74c3c;
+        }
+
+        .gameover-title.draw {
+            color: #3498db;
+        }
+
+        .gameover-msg {
+            color: #7f8c9b;
+            font-size: 0.95rem;
+            margin-bottom: 28px;
+            position: relative;
+            z-index: 1;
+            line-height: 1.5;
+        }
+
+        .gameover-btns {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        .gameover-btn {
+            padding: 12px 28px;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            border: none;
+            font-family: inherit;
+        }
+
+        .gameover-btn.primary {
+            background: linear-gradient(135deg, #f1c40f, #e67e22);
+            color: #1a1a2e;
+        }
+
+        .gameover-btn.primary:hover {
+            transform: scale(1.05);
+            box-shadow: 0 8px 24px rgba(241, 196, 15, 0.3);
+        }
+
+        .gameover-btn.secondary {
+            background: rgba(255, 255, 255, 0.06);
+            color: #a0aec0;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .gameover-btn.secondary:hover {
+            background: rgba(255, 255, 255, 0.12);
+            transform: scale(1.05);
+        }
+
+        /* Confetti particles */
+        .confetti-container {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 1999;
+            overflow: hidden;
+        }
+
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            top: -20px;
+            animation: confettiFall linear forwards;
+        }
+
+        @keyframes confettiFall {
+            0% {
+                transform: translateY(0) rotate(0deg);
+                opacity: 1;
+            }
+
+            100% {
+                transform: translateY(110vh) rotate(720deg);
+                opacity: 0;
+            }
+        }
+
+        /* ===== RESPONSIVE LAYOUT ===== */
+        /* Hide side panels when viewport is narrow */
+        @media (max-width: 900px) {
+
+            .graveyard,
+            .history-panel {
+                display: none !important;
+            }
+
+            .side-panel {
+                display: none !important;
+            }
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 4px 0;
+            }
+
+            .menu-logo {
+                font-size: 2rem;
+            }
+
+            .menu-subtitle {
+                font-size: 0.85rem;
+                margin-bottom: 1.5rem;
+            }
+
+            .mode-cards {
+                flex-direction: column;
+                gap: 14px;
+                padding: 0 16px;
+                align-items: center;
+            }
+
+            .mode-card {
+                width: 100%;
+                max-width: 300px;
+                padding: 20px 18px 16px;
+            }
+
+            .mode-icon {
+                font-size: 2rem;
+                margin-bottom: 8px;
+            }
+
+            .diff-pills {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .diff-pill {
+                width: 80%;
+                max-width: 260px;
+            }
+
+            /* Header compact */
+            .title-text {
+                font-size: 1.3rem;
+                margin-bottom: 0;
+            }
+
+            .subtitle-text {
+                font-size: 0.75rem;
+                margin-bottom: 0;
+            }
+
+            .status-text {
+                font-size: 0.95rem;
+            }
+
+            .mode-badge {
+                font-size: 0.65rem;
+                padding: 2px 10px;
+                margin-bottom: 2px;
+            }
+
+            /* Wood panel control bar */
+            .wood-panel {
+                padding: 10px 14px 8px;
+                gap: 8px;
+            }
+
+            .wood-btn {
+                padding: 8px 14px;
+                font-size: 0.8rem;
+                min-height: 40px;
+            }
+
+            /* Timer compact */
+            .timer-clock {
+                font-size: 1.1rem;
+                padding: 4px 12px;
+            }
+
+            .timer-label {
+                font-size: 0.7rem;
+            }
+
+            /* Gameover popup responsive */
+            .gameover-card {
+                padding: 32px 24px 28px;
+                max-width: 90%;
+            }
+
+            .gameover-emoji {
+                font-size: 3rem;
+            }
+
+            .gameover-title {
+                font-size: 1.4rem;
+            }
+
+            .gameover-btns {
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .gameover-btn {
+                width: 100%;
+                min-height: 44px;
+            }
+
+            .back-link {
+                min-height: 44px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .room-panel input {
+                width: 200px;
+                font-size: 1.3rem;
+                letter-spacing: 6px;
+            }
+
+            .room-code-display {
+                font-size: 1.8rem;
+                letter-spacing: 8px;
+            }
+
+            .room-btn {
+                min-height: 44px;
+                padding: 12px 24px;
+            }
+        }
+
+        @media (max-width: 400px) {
+            .menu-logo {
+                font-size: 1.6rem;
+            }
+
+            .mode-card {
+                padding: 16px 14px 12px;
+            }
+
+            .mode-title {
+                font-size: 1rem;
+            }
+
+            .title-text {
+                font-size: 1.1rem;
+            }
+
+            .wood-btn {
+                padding: 6px 10px;
+                font-size: 0.75rem;
+            }
+        }
+
+        /* Short viewports — compress header to reclaim vertical space */
+        @media (max-height: 700px) {
+            .title-text {
+                display: none;
+            }
+
+            .subtitle-text {
+                display: none;
+            }
+
+            .mode-badge {
+                margin-bottom: 2px;
+                font-size: 0.6rem;
+                padding: 2px 8px;
+            }
+
+            .status-text {
+                font-size: 0.9rem;
+                min-height: 1.2rem;
+            }
+
+            #game-screen .flex-none.text-center {
+                padding: 0;
+                margin: 0;
+            }
+
+            .wood-panel {
+                padding: 8px 12px 6px;
+            }
+
+            .wood-btn {
+                padding: 5px 12px;
+                font-size: 0.78rem;
+            }
+
+            .timer-bar {
+                padding: 3px 0;
+            }
+
+            .timer-clock {
+                font-size: 1rem;
+                padding: 3px 10px;
+            }
+
+            .timer-label {
+                font-size: 0.65rem;
+            }
+        }
+
+        /* Very short viewports */
+        @media (max-height: 550px) {
+            .mode-badge {
+                display: none;
+            }
+
+            .status-text {
+                font-size: 0.8rem;
+            }
+        }
     </style>
 </head>
+
 <body class="h-screen w-screen overflow-hidden flex flex-col items-center justify-between py-4 box-border">
 
-    <!-- Header Section (Flex-none prevents it from shrinking/growing) -->
-    <div class="flex-none text-center">
-        <h1 class="title-text">1v1 Interactive Chess</h1>
-        <p class="subtitle-text">Hover over the board to play. Click pieces to move.</p>
-        <div id="status" class="status-text">White to move</div>
-    </div>
-
-    <!-- Main Game Area (Flex-1 allows it to take remaining space, items-center vertically centers it) -->
-    <div class="flex-1 flex items-center justify-center w-full max-w-[1400px] gap-4 px-4 min-h-0">
-        
-        <!-- Left Side: Balances center board -->
-        <div class="flex-1 flex justify-end pr-4">
-            <!-- Left Graveyard (Black pieces defeated go here) -->
-            <div id="black-graveyard" class="graveyard">
-                <div class="graveyard-title">Captured Black</div>
-            </div>
-        </div>
-        
-        <!-- Center Board with Coordinates (Fixed dimensions to ensure fit) -->
-        <div class="flex-none flex flex-col items-end">
-            <div class="flex">
-                <div class="flex flex-col justify-around text-[#818b9c] font-semibold pr-2 select-none text-sm text-center" style="height: 512px; width: 20px;">
-                    <span>8</span><span>7</span><span>6</span><span>5</span><span>4</span><span>3</span><span>2</span><span>1</span>
+    <!-- ===== MAIN MENU OVERLAY ===== -->
+    <div id="main-menu" class="menu-overlay">
+        <!-- Main Cards View -->
+        <div id="menu-main" class="flex flex-col items-center">
+            <div class="menu-logo">♚ Chess Master</div>
+            <p class="menu-subtitle">Choose your game mode</p>
+            <div class="mode-cards">
+                <!-- Play vs AI -->
+                <div class="mode-card" id="card-ai" onclick="showAIMenu()">
+                    <span class="mode-icon">🤖</span>
+                    <div class="mode-title">Play vs AI</div>
+                    <div class="mode-desc">Challenge the computer at three difficulty levels</div>
                 </div>
-                <!-- Board optimized to 512px for clean integer tile sizing (64px) and perfect screen fit -->
-                <div id="board2" style="width: 512px; height: 512px;"></div>
-            </div>
-            <div class="flex justify-around text-[#818b9c] font-semibold pt-2 select-none text-sm" style="width: 512px;">
-                <span style="width: 64px; text-align: center;">a</span>
-                <span style="width: 64px; text-align: center;">b</span>
-                <span style="width: 64px; text-align: center;">c</span>
-                <span style="width: 64px; text-align: center;">d</span>
-                <span style="width: 64px; text-align: center;">e</span>
-                <span style="width: 64px; text-align: center;">f</span>
-                <span style="width: 64px; text-align: center;">g</span>
-                <span style="width: 64px; text-align: center;">h</span>
-            </div>
-        </div>
-
-        <!-- Right Side: Balances center board -->
-        <div class="flex-1 flex justify-start pl-4 gap-4">
-            <!-- Right Graveyard (White pieces defeated go here) -->
-            <div id="white-graveyard" class="graveyard">
-                <div class="graveyard-title">Captured White</div>
-            </div>
-
-            <!-- Move History Sidebar -->
-            <div id="move-history" class="history-panel">
-                <div class="history-title">Move History</div>
-                <div class="history-list" id="history-list"></div>
+                <!-- Play with Friend Online -->
+                <div class="mode-card" id="card-online" onclick="showOnlineMenu()">
+                    <span class="mode-icon">🌐</span>
+                    <div class="mode-title">Play with Friend</div>
+                    <div class="mode-desc">Share a room code and battle your friend online</div>
+                </div>
+                <!-- Local 1v1 -->
+                <div class="mode-card" id="card-local" onclick="startLocal()">
+                    <span class="mode-icon">🎮</span>
+                    <div class="mode-title">Local 1v1</div>
+                    <div class="mode-desc">Two players on the same device, classic chess</div>
+                </div>
             </div>
         </div>
 
+        <!-- AI Difficulty Sub-Menu -->
+        <div id="menu-ai" class="submenu">
+            <div class="diff-title">🤖 Choose Difficulty</div>
+            <div class="diff-subtitle">Select how strong the AI opponent should be</div>
+            <div class="diff-pills">
+                <div class="diff-pill beginner" onclick="startAI('beginner')">
+                    ♟ Beginner
+                    <span class="pill-sub">Casual & forgiving</span>
+                </div>
+                <div class="diff-pill intermediate" onclick="startAI('intermediate')">
+                    ♞ Intermediate
+                    <span class="pill-sub">Tactical & competitive</span>
+                </div>
+                <div class="diff-pill professional" onclick="startAI('professional')">
+                    ♛ Professional
+                    <span class="pill-sub">Ruthless & precise</span>
+                </div>
+            </div>
+            <div class="back-link" onclick="backToMain()">☰ Main Menu</div>
+        </div>
+
+        <!-- Online Room Sub-Menu -->
+        <div id="menu-online" class="submenu">
+            <div class="diff-title">🌐 Play with Friend</div>
+            <div class="diff-subtitle">Create a room or join with a code</div>
+            <div class="room-panel">
+                <div class="room-btns" id="room-initial-btns">
+                    <button class="room-btn create" onclick="createRoom()">Create Room</button>
+                </div>
+                <div id="room-code-area" style="display:none;">
+                    <div class="diff-subtitle" style="margin-top:12px;">Your Room Code (click to copy):</div>
+                    <div class="room-code-display" id="room-code-text" onclick="copyRoomCode()"></div>
+                </div>
+                <div style="margin: 20px 0 8px; color: #4a5568; font-size: 0.85rem;">— or join a friend's room —</div>
+                <input type="text" id="room-code-input" placeholder="ENTER CODE" maxlength="6">
+                <div class="room-btns">
+                    <button class="room-btn join" onclick="joinRoom()">Join Room</button>
+                </div>
+                <div class="room-status" id="room-status"></div>
+            </div>
+            <div class="back-link" onclick="backToMain()">☰ Main Menu</div>
+        </div>
     </div>
 
-    <!-- Control Bar (Flex-none anchors it to bottom safely) -->
-    <div class="flex-none mb-2">
-        <div class="wood-panel">
-            <button id="startBtn" class="wood-btn">Restart Game</button>
-            <button id="undoBtn" class="wood-btn">Undo Move</button>
+    <!-- ===== GAME SCREEN ===== -->
+    <div id="game-screen" class="flex-1 flex flex-col items-center justify-between w-full">
+
+        <!-- Header -->
+        <div class="flex-none text-center">
+            <div id="mode-badge" class="mode-badge"></div>
+            <h1 class="title-text">Chess Master</h1>
+            <p class="subtitle-text" id="game-subtitle">Click pieces to move.</p>
+            <div id="status" class="status-text">White to move</div>
+            <div class="thinking-indicator" id="thinking">
+                AI is thinking
+                <span class="thinking-dots"><span></span><span></span><span></span></span>
+            </div>
+        </div>
+
+        <!-- Main Game Area -->
+        <div class="flex-1 flex items-center justify-center w-full max-w-[1400px] gap-4 px-4 min-h-0">
+            <div class="side-panel flex-1 flex justify-end pr-4">
+                <div id="black-graveyard" class="graveyard">
+                    <div class="graveyard-title">Captured Black</div>
+                </div>
+            </div>
+
+            <div class="flex-none flex flex-col items-center">
+                <!-- Black Timer (top of board) -->
+                <div class="timer-container" id="timer-container">
+                    <div class="timer-bar">
+                        <div class="timer-player">
+                            <span class="timer-label">♚ Black</span>
+                            <div class="timer-clock black-timer" id="black-clock">10:00</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex">
+                    <div id="rank-labels"
+                        class="flex flex-col justify-around text-[#818b9c] font-semibold pr-2 select-none text-sm text-center"
+                        style="width: 20px;">
+                        <span>8</span><span>7</span><span>6</span><span>5</span><span>4</span><span>3</span><span>2</span><span>1</span>
+                    </div>
+                    <div style="position: relative;">
+                        <div id="board2"></div>
+                        <div class="board-lock" id="board-lock"></div>
+                    </div>
+                </div>
+                <div id="file-labels" class="flex justify-around text-[#818b9c] font-semibold pt-1 select-none text-sm">
+                    <span>a</span><span>b</span><span>c</span><span>d</span><span>e</span><span>f</span><span>g</span><span>h</span>
+                </div>
+                <!-- White Timer (bottom of board) -->
+                <div class="timer-container" id="timer-container-bottom">
+                    <div class="timer-bar">
+                        <div class="timer-player">
+                            <span class="timer-label">♔ White</span>
+                            <div class="timer-clock white-timer" id="white-clock">10:00</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="side-panel flex-1 flex justify-start pl-4 gap-4">
+                <div id="white-graveyard" class="graveyard">
+                    <div class="graveyard-title">Captured White</div>
+                </div>
+                <div id="move-history" class="history-panel">
+                    <div class="history-title">Move History</div>
+                    <div class="history-list" id="history-list"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Control Bar -->
+        <div class="flex-none mb-2">
+            <div class="wood-panel">
+                <button id="menuBtn" class="wood-btn" onclick="backToMenu()">☰ Menu</button>
+                <button id="startBtn" class="wood-btn">Restart Game</button>
+                <button id="undoBtn" class="wood-btn">Undo Move</button>
+            </div>
         </div>
     </div>
+
+    <!-- ===== GAME OVER POPUP ===== -->
+    <div id="gameover-overlay" class="gameover-overlay" onclick="closeGameOverPopup(event)">
+        <div class="gameover-card">
+            <span class="gameover-emoji" id="gameover-emoji">🏆</span>
+            <div class="gameover-title" id="gameover-title">Congratulations!</div>
+            <div class="gameover-msg" id="gameover-msg">You won the game!</div>
+            <div class="gameover-btns">
+                <button class="gameover-btn primary" onclick="gameoverPlayAgain()">Play Again</button>
+                <button class="gameover-btn secondary" onclick="gameoverGoMenu()">Main Menu</button>
+            </div>
+        </div>
+    </div>
+    <div class="confetti-container" id="confetti-container"></div>
 
     <script>
-        $(document).ready(function() {
-            var game = new Chess();
+        // =========================================================================
+        //  GLOBAL STATE
+        // =========================================================================
+        var gameMode = 'local'; // 'local', 'ai', 'online'
+        var aiDifficulty = 'beginner'; // 'beginner', 'intermediate', 'professional'
+        var playerColor = 'w'; // which color the human plays in AI/online
+        var boardLocked = false;
+        var peer = null;
+        var peerConn = null;
+        var isHost = false;
+
+        // =========================================================================
+        //  CACHED DOM ELEMENTS
+        // =========================================================================
+        var $boardLockEl = document.getElementById('board-lock');
+
+        // =========================================================================
+        //  GAME OVER POPUP
+        // =========================================================================
+        function showGameOverPopup(type, winnerColor) {
+            var emoji = document.getElementById('gameover-emoji');
+            var title = document.getElementById('gameover-title');
+            var msg = document.getElementById('gameover-msg');
+
+            if (type === 'draw') {
+                emoji.textContent = '🤝';
+                title.textContent = 'Draw!';
+                title.className = 'gameover-title draw';
+                msg.textContent = 'The game ended in a draw. Well played by both sides!';
+            } else if (type === 'checkmate') {
+                // Determine if human won
+                var humanWon = false;
+                if (gameMode === 'local') {
+                    // In local mode, just announce winner
+                    var winnerName = winnerColor === 'w' ? 'White' : 'Black';
+                    emoji.textContent = '🏆';
+                    title.textContent = 'Checkmate!';
+                    title.className = 'gameover-title win';
+                    msg.textContent = winnerName + ' wins! Brilliant game!';
+                    humanWon = true;
+                } else if (gameMode === 'ai') {
+                    humanWon = (winnerColor === playerColor);
+                    if (humanWon) {
+                        emoji.textContent = '🏆';
+                        title.textContent = 'Congratulations!';
+                        title.className = 'gameover-title win';
+                        msg.textContent = 'You defeated the ' + aiDifficulty + ' AI! Masterful play!';
+                    } else {
+                        emoji.textContent = '😔';
+                        title.textContent = 'Defeated!';
+                        title.className = 'gameover-title lose';
+                        msg.textContent = 'The AI won this round. Try again — you\'ve got this!';
+                    }
+                } else if (gameMode === 'online') {
+                    humanWon = (winnerColor === playerColor);
+                    if (humanWon) {
+                        emoji.textContent = '🏆';
+                        title.textContent = 'Victory!';
+                        title.className = 'gameover-title win';
+                        msg.textContent = 'You outplayed your friend! Amazing game!';
+                    } else {
+                        emoji.textContent = '😔';
+                        title.textContent = 'Defeated!';
+                        title.className = 'gameover-title lose';
+                        msg.textContent = 'Your friend won this time. Rematch?';
+                    }
+                }
+
+                if (humanWon) {
+                    spawnConfetti();
+                }
+            }
+
+            document.getElementById('gameover-overlay').classList.add('active');
+        }
+
+        function closeGameOverPopup(e) {
+            // Close only if clicking the backdrop, not the card
+            if (e.target === e.currentTarget) {
+                document.getElementById('gameover-overlay').classList.remove('active');
+                clearConfetti();
+            }
+        }
+
+        function gameoverPlayAgain() {
+            document.getElementById('gameover-overlay').classList.remove('active');
+            clearConfetti();
+            if (typeof resetGame === 'function') resetGame();
+        }
+
+        function gameoverGoMenu() {
+            document.getElementById('gameover-overlay').classList.remove('active');
+            clearConfetti();
+            backToMenu();
+        }
+
+        function spawnConfetti() {
+            var container = document.getElementById('confetti-container');
+            var fragment = document.createDocumentFragment();
+            var colors = ['#f1c40f', '#e74c3c', '#2ecc71', '#3498db', '#9b59b6', '#e67e22', '#1abc9c'];
+
+            for (var i = 0; i < 80; i++) {
+                var conf = document.createElement('div');
+                conf.className = 'confetti';
+                var color = colors[Math.floor(Math.random() * colors.length)];
+                var size = 6 + Math.random() * 8;
+                var left = Math.random() * 100;
+                var duration = 2 + Math.random() * 3;
+                var delay = Math.random() * 2;
+                var isCircle = Math.random() > 0.5;
+
+                conf.style.cssText =
+                    'left:' + left + '%;' +
+                    'width:' + size + 'px;' +
+                    'height:' + size + 'px;' +
+                    'background:' + color + ';' +
+                    'border-radius:' + (isCircle ? '50%' : '2px') + ';' +
+                    'animation-duration:' + duration + 's;' +
+                    'animation-delay:' + delay + 's;';
+
+                fragment.appendChild(conf);
+            }
+            container.appendChild(fragment); // single DOM write instead of 80
+
+            // Auto-cleanup confetti after animations finish (prevents memory leak)
+            setTimeout(function () { clearConfetti(); }, 6000);
+        }
+
+        function clearConfetti() {
+            document.getElementById('confetti-container').innerHTML = '';
+        }
+
+        // =========================================================================
+        //  MENU LOGIC
+        // =========================================================================
+        function showAIMenu() {
+            document.getElementById('menu-main').style.display = 'none';
+            document.getElementById('menu-ai').classList.add('active');
+        }
+        function showOnlineMenu() {
+            document.getElementById('menu-main').style.display = 'none';
+            document.getElementById('menu-online').classList.add('active');
+            // Reset online UI
+            document.getElementById('room-code-area').style.display = 'none';
+            document.getElementById('room-status').textContent = '';
+            document.getElementById('room-code-input').value = '';
+        }
+        function backToMain() {
+            document.getElementById('menu-main').style.display = 'flex';
+            document.querySelectorAll('.submenu').forEach(function (el) {
+                el.classList.remove('active');
+            });
+            // Clean up peer if going back
+            if (peer) { peer.destroy(); peer = null; peerConn = null; }
+        }
+        function backToMenu() {
+            // Cleanup peer connection
+            if (peer) { peer.destroy(); peer = null; peerConn = null; }
+            // Stop timers to prevent background ticking
+            stopTimer();
+            hideTimers();
+            document.getElementById('game-screen').classList.remove('active');
+            document.getElementById('main-menu').classList.remove('hidden');
+            backToMain();
+        }
+
+        function startLocal() {
+            gameMode = 'local';
+            playerColor = 'w';
+            launchGame();
+        }
+        function startAI(diff) {
+            gameMode = 'ai';
+            aiDifficulty = diff;
+            playerColor = 'w';
+            launchGame();
+        }
+
+        function launchGame() {
+            document.getElementById('main-menu').classList.add('hidden');
+            document.getElementById('game-screen').classList.add('active');
+
+            // Recompute board size now that the game screen is visible
+            if (typeof computeBoardSize === 'function') computeBoardSize();
+
+            // Set mode badge
+            var badge = document.getElementById('mode-badge');
+            var subtitle = document.getElementById('game-subtitle');
+            if (gameMode === 'ai') {
+                badge.className = 'mode-badge ai-' + aiDifficulty;
+                badge.textContent = 'AI — ' + aiDifficulty.charAt(0).toUpperCase() + aiDifficulty.slice(1);
+                subtitle.textContent = 'You play White. AI plays Black.';
+            } else if (gameMode === 'online') {
+                badge.className = 'mode-badge online';
+                badge.textContent = 'Online — ' + (isHost ? 'White' : 'Black');
+                subtitle.textContent = isHost ? 'You play White. Friend plays Black.' : 'You play Black. Friend plays White.';
+            } else {
+                badge.className = 'mode-badge local';
+                badge.textContent = 'Local 1v1';
+                subtitle.textContent = 'Two players, same device. Click pieces to move.';
+            }
+
+            // Show Undo only in AI mode
+            document.getElementById('undoBtn').style.display = (gameMode === 'ai') ? 'inline-block' : 'none';
+
+            resetGame();
+        }
+
+        // =========================================================================
+        //  ONLINE (PEERJS) LOGIC
+        // =========================================================================
+        function generateRoomCode() {
+            var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            var code = '';
+            for (var i = 0; i < 6; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
+            return code;
+        }
+
+        function copyRoomCode() {
+            var code = document.getElementById('room-code-text').textContent;
+            navigator.clipboard.writeText(code).then(function () {
+                setRoomStatus('Copied to clipboard!', 'connected');
+                setTimeout(function () { setRoomStatus('Waiting for opponent...', 'waiting'); }, 1500);
+            });
+        }
+
+        function setRoomStatus(msg, cls) {
+            var el = document.getElementById('room-status');
+            el.textContent = msg;
+            el.className = 'room-status ' + (cls || '');
+        }
+
+        var createRoomRetries = 0;
+        var MAX_ROOM_RETRIES = 3;
+
+        function createRoom() {
+            var code = generateRoomCode();
+            document.getElementById('room-code-text').textContent = code;
+            document.getElementById('room-code-area').style.display = 'block';
+            setRoomStatus('Connecting...', 'waiting');
+
+            isHost = true;
+            playerColor = 'w';
+
+            peer = new Peer('chess-' + code, {
+                debug: 0
+            });
+
+            peer.on('open', function () {
+                setRoomStatus('Waiting for opponent to join...', 'waiting');
+            });
+
+            peer.on('connection', function (conn) {
+                peerConn = conn;
+                setupPeerConnection(conn);
+            });
+
+            peer.on('error', function (err) {
+                if (err.type === 'unavailable-id') {
+                    createRoomRetries++;
+                    if (createRoomRetries >= MAX_ROOM_RETRIES) {
+                        setRoomStatus('Failed after ' + MAX_ROOM_RETRIES + ' attempts. Please try again later.', 'error');
+                        if (peer) { peer.destroy(); peer = null; }
+                        createRoomRetries = 0;
+                        return;
+                    }
+                    setRoomStatus('Code in use, retrying... (' + createRoomRetries + '/' + MAX_ROOM_RETRIES + ')', 'waiting');
+                    peer.destroy();
+                    peer = null;
+                    createRoom();
+                } else {
+                    setRoomStatus('Connection error: ' + err.type, 'error');
+                }
+            });
+        }
+
+        function joinRoom() {
+            var code = document.getElementById('room-code-input').value.toUpperCase().trim();
+            if (code.length < 4) {
+                setRoomStatus('Please enter a valid room code.', 'error');
+                return;
+            }
+
+            isHost = false;
+            playerColor = 'b';
+            setRoomStatus('Connecting...', 'waiting');
+
+            peer = new Peer({
+                debug: 0
+            });
+
+            peer.on('open', function () {
+                var conn = peer.connect('chess-' + code, { reliable: true });
+                peerConn = conn;
+                setupPeerConnection(conn);
+            });
+
+            peer.on('error', function (err) {
+                setRoomStatus('Could not connect: ' + err.type, 'error');
+            });
+        }
+
+        function setupPeerConnection(conn) {
+            conn.on('open', function () {
+                setRoomStatus('Connected! Starting game...', 'connected');
+                gameMode = 'online';
+                setTimeout(function () {
+                    launchGame();
+                }, 800);
+            });
+
+            conn.on('data', function (data) {
+                if (data.type === 'move') {
+                    // Opponent made a move
+                    game.move(data.move);
+                    board2.position(game.fen());
+                    updateStatus();
+                    updateGraveyards();
+                    updateMoveHistory();
+                    unlockBoard();
+                } else if (data.type === 'restart') {
+                    game.reset();
+                    board2.start();
+                    clearHighlights();
+                    updateStatus();
+                    updateGraveyards();
+                    updateMoveHistory();
+                    unlockBoard();
+                    resetTimers();
+                    showTimers();
+                    startTimer();
+                }
+            });
+
+            conn.on('close', function () {
+                setRoomStatus('Opponent disconnected.', 'error');
+                stopTimer();
+                lockBoard();
+            });
+        }
+
+        function sendMove(moveObj) {
+            try {
+                if (peerConn && peerConn.open) {
+                    peerConn.send({ type: 'move', move: moveObj });
+                }
+            } catch (e) {
+                console.warn('Failed to send move:', e);
+            }
+        }
+
+        // =========================================================================
+        //  BOARD LOCK
+        // =========================================================================
+        function lockBoard() {
+            boardLocked = true;
+            $boardLockEl.classList.add('active');
+        }
+        function unlockBoard() {
+            boardLocked = false;
+            $boardLockEl.classList.remove('active');
+        }
+
+        // =========================================================================
+        //  AI ENGINE — MINIMAX WITH ALPHA-BETA PRUNING
+        // =========================================================================
+        var PIECE_VALUES = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 20000 };
+
+        // Piece-Square Tables (from White's perspective — flip for Black)
+        var PST = {
+            p: [
+                0, 0, 0, 0, 0, 0, 0, 0,
+                50, 50, 50, 50, 50, 50, 50, 50,
+                10, 10, 20, 30, 30, 20, 10, 10,
+                5, 5, 10, 25, 25, 10, 5, 5,
+                0, 0, 0, 20, 20, 0, 0, 0,
+                5, -5, -10, 0, 0, -10, -5, 5,
+                5, 10, 10, -20, -20, 10, 10, 5,
+                0, 0, 0, 0, 0, 0, 0, 0
+            ],
+            n: [
+                -50, -40, -30, -30, -30, -30, -40, -50,
+                -40, -20, 0, 0, 0, 0, -20, -40,
+                -30, 0, 10, 15, 15, 10, 0, -30,
+                -30, 5, 15, 20, 20, 15, 5, -30,
+                -30, 0, 15, 20, 20, 15, 0, -30,
+                -30, 5, 10, 15, 15, 10, 5, -30,
+                -40, -20, 0, 5, 5, 0, -20, -40,
+                -50, -40, -30, -30, -30, -30, -40, -50
+            ],
+            b: [
+                -20, -10, -10, -10, -10, -10, -10, -20,
+                -10, 0, 0, 0, 0, 0, 0, -10,
+                -10, 0, 10, 10, 10, 10, 0, -10,
+                -10, 5, 5, 10, 10, 5, 5, -10,
+                -10, 0, 5, 10, 10, 5, 0, -10,
+                -10, 10, 10, 10, 10, 10, 10, -10,
+                -10, 5, 0, 0, 0, 0, 5, -10,
+                -20, -10, -10, -10, -10, -10, -10, -20
+            ],
+            r: [
+                0, 0, 0, 0, 0, 0, 0, 0,
+                5, 10, 10, 10, 10, 10, 10, 5,
+                -5, 0, 0, 0, 0, 0, 0, -5,
+                -5, 0, 0, 0, 0, 0, 0, -5,
+                -5, 0, 0, 0, 0, 0, 0, -5,
+                -5, 0, 0, 0, 0, 0, 0, -5,
+                -5, 0, 0, 0, 0, 0, 0, -5,
+                0, 0, 0, 5, 5, 0, 0, 0
+            ],
+            q: [
+                -20, -10, -10, -5, -5, -10, -10, -20,
+                -10, 0, 0, 0, 0, 0, 0, -10,
+                -10, 0, 5, 5, 5, 5, 0, -10,
+                -5, 0, 5, 5, 5, 5, 0, -5,
+                0, 0, 5, 5, 5, 5, 0, -5,
+                -10, 5, 5, 5, 5, 5, 0, -10,
+                -10, 0, 5, 0, 0, 0, 0, -10,
+                -20, -10, -10, -5, -5, -10, -10, -20
+            ],
+            k: [
+                -30, -40, -40, -50, -50, -40, -40, -30,
+                -30, -40, -40, -50, -50, -40, -40, -30,
+                -30, -40, -40, -50, -50, -40, -40, -30,
+                -30, -40, -40, -50, -50, -40, -40, -30,
+                -20, -30, -30, -40, -40, -30, -30, -20,
+                -10, -20, -20, -20, -20, -20, -20, -10,
+                20, 20, 0, 0, 0, 0, 20, 20,
+                20, 30, 10, 0, 0, 10, 30, 20
+            ]
+        };
+
+        function getPSTValue(piece, square, color) {
+            var file = square.charCodeAt(0) - 97; // 0-7
+            var rank = parseInt(square[1]) - 1;    // 0-7
+            var index;
+            if (color === 'w') {
+                index = (7 - rank) * 8 + file;
+            } else {
+                index = rank * 8 + file;
+            }
+            return (PST[piece] || [])[index] || 0;
+        }
+
+        function evaluateBoard(g) {
+            if (g.in_checkmate()) {
+                return g.turn() === 'w' ? -99999 : 99999;
+            }
+            if (g.in_draw()) {
+                return 0;
+            }
+
+            var score = 0;
+            var board = g.board();
+            for (var r = 0; r < 8; r++) {
+                for (var f = 0; f < 8; f++) {
+                    var sq = board[r][f];
+                    if (sq) {
+                        var squareName = String.fromCharCode(97 + f) + (8 - r);
+                        var val = PIECE_VALUES[sq.type] + getPSTValue(sq.type, squareName, sq.color);
+                        score += (sq.color === 'w') ? val : -val;
+                    }
+                }
+            }
+            return score;
+        }
+
+        // Move ordering: captures and checks first for faster alpha-beta cutoffs
+        function orderMoves(g, moves) {
+            var scored = [];
+            for (var i = 0; i < moves.length; i++) {
+                var m = moves[i];
+                var score = 0;
+                g.move(m);
+                if (g.in_check()) score += 50;
+                g.undo();
+                // Heuristic: captures (moves containing 'x') get priority
+                if (m.indexOf('x') !== -1) score += 100;
+                scored.push({ move: m, score: score });
+            }
+            scored.sort(function (a, b) { return b.score - a.score; });
+            var ordered = [];
+            for (var i = 0; i < scored.length; i++) ordered.push(scored[i].move);
+            return ordered;
+        }
+
+        function minimax(g, depth, alpha, beta, isMaximizing) {
+            if (depth === 0 || g.game_over()) {
+                return evaluateBoard(g);
+            }
+
+            var moves = g.moves();
+            // Only order moves at higher depths where pruning saves more
+            if (depth >= 2) moves = orderMoves(g, moves);
+
+            if (isMaximizing) {
+                var maxEval = -Infinity;
+                for (var i = 0; i < moves.length; i++) {
+                    g.move(moves[i]);
+                    var eval_ = minimax(g, depth - 1, alpha, beta, false);
+                    g.undo();
+                    if (eval_ > maxEval) maxEval = eval_;
+                    if (eval_ > alpha) alpha = eval_;
+                    if (beta <= alpha) break;
+                }
+                return maxEval;
+            } else {
+                var minEval = Infinity;
+                for (var i = 0; i < moves.length; i++) {
+                    g.move(moves[i]);
+                    var eval_ = minimax(g, depth - 1, alpha, beta, true);
+                    g.undo();
+                    if (eval_ < minEval) minEval = eval_;
+                    if (eval_ < beta) beta = eval_;
+                    if (beta <= alpha) break;
+                }
+                return minEval;
+            }
+        }
+
+        function getAIMove(g) {
+            var depth, randomFactor;
+
+            switch (aiDifficulty) {
+                case 'beginner':
+                    depth = 1;
+                    randomFactor = 3; // Pick random from top 3
+                    break;
+                case 'intermediate':
+                    depth = 3;
+                    randomFactor = 1; // Always best
+                    break;
+                case 'professional':
+                    // Adaptive depth: deeper in endgame (max 4 to avoid freeze)
+                    var pieces = 0;
+                    var b = g.board();
+                    for (var r = 0; r < 8; r++) for (var f = 0; f < 8; f++) if (b[r][f]) pieces++;
+                    depth = pieces <= 10 ? 4 : 3;
+                    randomFactor = 1;
+                    break;
+                default:
+                    depth = 2;
+                    randomFactor = 1;
+            }
+
+            var moves = g.moves({ verbose: true });
+            if (moves.length === 0) return null;
+
+            var evaluatedMoves = [];
+            var isMaximizing = (g.turn() === 'w');
+
+            for (var i = 0; i < moves.length; i++) {
+                g.move(moves[i].san);
+                var score = minimax(g, depth - 1, -Infinity, Infinity, !isMaximizing);
+                g.undo();
+                evaluatedMoves.push({ move: moves[i], score: score });
+            }
+
+            // Sort by score (AI plays Black, so minimize)
+            evaluatedMoves.sort(function (a, b) {
+                return isMaximizing ? b.score - a.score : a.score - b.score;
+            });
+
+            // Pick from top candidates
+            var topCount = Math.min(randomFactor, evaluatedMoves.length);
+            var chosen = evaluatedMoves[Math.floor(Math.random() * topCount)];
+            return chosen.move;
+        }
+
+        // =========================================================================
+        //  GAME LOGIC
+        // =========================================================================
+        // =========================================================================
+        //  CHESS TIMER
+        // =========================================================================
+        var timerWhite = 600; // 10 minutes in seconds
+        var timerBlack = 600;
+        var timerInterval = null;
+        var timerActive = false;
+
+        function formatTime(seconds) {
+            var m = Math.floor(seconds / 60);
+            var s = seconds % 60;
+            return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+        }
+
+        // Cache timer DOM references (resolved once after DOM is ready)
+        var $whiteClockEl = null;
+        var $blackClockEl = null;
+
+        function ensureTimerEls() {
+            if (!$whiteClockEl) $whiteClockEl = document.getElementById('white-clock');
+            if (!$blackClockEl) $blackClockEl = document.getElementById('black-clock');
+        }
+
+        function renderTimers() {
+            ensureTimerEls();
+            if (!$whiteClockEl || !$blackClockEl) return;
+            // Guard: game may not be initialized yet
+            if (typeof game === 'undefined' || !game) return;
+
+            $whiteClockEl.textContent = formatTime(timerWhite);
+            $blackClockEl.textContent = formatTime(timerBlack);
+
+            // Active highlight
+            var turn = game.turn();
+            $whiteClockEl.classList.toggle('active-timer', turn === 'w' && timerActive);
+            $blackClockEl.classList.toggle('active-timer', turn === 'b' && timerActive);
+
+            // Low time warning (< 60 seconds)
+            $whiteClockEl.classList.toggle('low-time', timerWhite <= 60 && timerWhite > 0);
+            $blackClockEl.classList.toggle('low-time', timerBlack <= 60 && timerBlack > 0);
+        }
+
+        function startTimer() {
+            stopTimer();
+            timerActive = true;
+            renderTimers();
+            timerInterval = setInterval(function () {
+                if (game.game_over() || !timerActive) { stopTimer(); return; }
+
+                var turn = game.turn();
+                // In AI mode, don't count AI's time
+                if (gameMode === 'ai' && turn !== playerColor) return;
+
+                if (turn === 'w') {
+                    timerWhite--;
+                    if (timerWhite <= 0) {
+                        timerWhite = 0;
+                        stopTimer();
+                        lockBoard(); // Prevent further moves
+                        showGameOverPopup('checkmate', 'b');
+                    }
+                } else {
+                    timerBlack--;
+                    if (timerBlack <= 0) {
+                        timerBlack = 0;
+                        stopTimer();
+                        lockBoard(); // Prevent further moves
+                        showGameOverPopup('checkmate', 'w');
+                    }
+                }
+                renderTimers();
+            }, 1000);
+        }
+
+        function stopTimer() {
+            timerActive = false;
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+            renderTimers();
+        }
+
+        function resetTimers() {
+            stopTimer();
+            timerWhite = 600;
+            timerBlack = 600;
+            renderTimers();
+        }
+
+        function showTimers() {
+            document.getElementById('timer-container').classList.add('active');
+            document.getElementById('timer-container-bottom').classList.add('active');
+        }
+
+        function hideTimers() {
+            document.getElementById('timer-container').classList.remove('active');
+            document.getElementById('timer-container-bottom').classList.remove('active');
+        }
+
+        // =========================================================================
+        //  GAME LOGIC
+        // =========================================================================
+        $(document).ready(function () {
+            window.game = new Chess();
             var $status = $('#status');
             var selectedSquare = null;
 
-            function clearHighlights () {
+            function clearHighlights() {
                 $('#board2 .square-55d63').removeClass('highlight selected-square');
                 selectedSquare = null;
             }
+            window.clearHighlights = clearHighlights;
+
+            // Shared history fetch — avoids calling game.history() twice per move
+            var _cachedHistory = null;
+            var _cachedHistoryLen = -1;
+
+            function getCachedHistory() {
+                var len = game.history().length;
+                if (len !== _cachedHistoryLen) {
+                    _cachedHistory = game.history({ verbose: true });
+                    _cachedHistoryLen = len;
+                }
+                return _cachedHistory;
+            }
 
             function updateGraveyards() {
-                var history = game.history({ verbose: true });
+                var history = getCachedHistory();
                 var whiteCaptured = [];
                 var blackCaptured = [];
-                
-                history.forEach(function(m) {
+
+                for (var i = 0; i < history.length; i++) {
+                    var m = history[i];
                     if (m.captured) {
-                        var capturedColor = m.color === 'w' ? 'b' : 'w';
-                        if (capturedColor === 'w') whiteCaptured.push(m.captured);
-                        else blackCaptured.push(m.captured);
+                        if (m.color === 'w') blackCaptured.push(m.captured);
+                        else whiteCaptured.push(m.captured);
                     }
-                });
-                
+                }
+
                 function renderGraveyard(id, pieces, color) {
                     var $gy = $(id);
-                    $gy.find('img').remove(); // Keep title intact
-                    pieces.forEach(function(p) {
+                    $gy.find('img').remove();
+                    pieces.forEach(function (p) {
                         var pieceTheme = 'https://chessboardjs.com/img/chesspieces/wikipedia/' + color + p.toUpperCase() + '.png';
                         $gy.append('<img src="' + pieceTheme + '" class="w-10 h-10 object-contain">');
                     });
                 }
-                
+
                 renderGraveyard('#white-graveyard', whiteCaptured, 'w');
                 renderGraveyard('#black-graveyard', blackCaptured, 'b');
             }
+            window.updateGraveyards = updateGraveyards;
 
             function updateMoveHistory() {
-                var history = game.history({ verbose: true });
+                var history = getCachedHistory();
                 var $list = $('#history-list');
                 $list.empty();
-                
+
                 var rows = [];
                 for (var i = 0; i < history.length; i += 2) {
                     var whiteMove = history[i] ? history[i].from + ' &rarr; ' + history[i].to : '';
-                    var blackMove = history[i+1] ? history[i+1].from + ' &rarr; ' + history[i+1].to : '';
+                    var blackMove = history[i + 1] ? history[i + 1].from + ' &rarr; ' + history[i + 1].to : '';
                     var rowNum = Math.floor(i / 2) + 1;
-                    
+
                     rows.push(
                         '<div class="history-row">' +
-                            '<span class="history-num">' + rowNum + '.</span>' +
-                            '<span>' + whiteMove + '</span>' +
-                            '<span>' + blackMove + '</span>' +
+                        '<span class="history-num">' + rowNum + '.</span>' +
+                        '<span>' + whiteMove + '</span>' +
+                        '<span>' + blackMove + '</span>' +
                         '</div>'
                     );
                 }
-                
+
                 $list.html(rows.join(''));
-                // Auto scroll to bottom
-                if ($list[0]) {
-                    $list.scrollTop($list[0].scrollHeight);
+                if ($list[0]) { $list.scrollTop($list[0].scrollHeight); }
+            }
+            window.updateMoveHistory = updateMoveHistory;
+
+            function updateStatus() {
+                var statusHTML = '';
+                var moveColor = game.turn() === 'b' ? 'Black' : 'White';
+
+                if (game.in_checkmate()) {
+                    statusHTML = 'Game over — ' + moveColor + ' is in checkmate!';
+                    unlockBoard();
+                    stopTimer();
+                    // Determine winner
+                    var winnerColor = moveColor === 'White' ? 'b' : 'w';
+                    setTimeout(function () { showGameOverPopup('checkmate', winnerColor); }, 600);
+                } else if (game.in_draw()) {
+                    statusHTML = 'Game over — drawn position';
+                    unlockBoard();
+                    stopTimer();
+                    setTimeout(function () { showGameOverPopup('draw', null); }, 600);
+                } else {
+                    statusHTML = moveColor + ' to move';
+                    if (game.in_check()) {
+                        statusHTML += ' — ' + moveColor + ' is in check!';
+                    }
                 }
+                $status.html(statusHTML);
+            }
+            window.updateStatus = updateStatus;
+
+            function canPlayerMove() {
+                if (game.game_over()) return false;
+                if (gameMode === 'ai' || gameMode === 'online') {
+                    return game.turn() === playerColor;
+                }
+                return true; // local
             }
 
-            function animateCaptureToGraveyard(square, color, pieceType) {
-                var squareEl = $('#board2 .square-' + square);
-                var pieceTheme = 'https://chessboardjs.com/img/chesspieces/wikipedia/' + color + pieceType.toUpperCase() + '.png';
-                
-                var graveyardId = color === 'w' ? '#white-graveyard' : '#black-graveyard';
-                var graveyard = $(graveyardId);
-                
-                // Create invisible placeholder in graveyard to claim layout space
-                var placeholder = $('<img src="' + pieceTheme + '" class="w-10 h-10 opacity-0 object-contain">');
-                graveyard.append(placeholder);
-                
-                var targetOffset = placeholder.offset();
-                
-                var startOffset;
-                var pieceImg = squareEl.find('img');
-                if (pieceImg.length) {
-                    startOffset = pieceImg.offset();
-                    pieceImg.hide(); // Hide instantly to prevent flicker before board re-renders
-                } else {
-                    startOffset = squareEl.offset();
+            function afterHumanMove(moveObj) {
+                // Update timer display after each move
+                renderTimers();
+
+                if (gameMode === 'ai' && !game.game_over()) {
+                    // Lock board during AI thinking
+                    lockBoard();
+                    $('#thinking').addClass('active');
+
+                    setTimeout(function () {
+                        var aiMove = getAIMove(game);
+                        if (aiMove) {
+                            game.move(aiMove.san);
+                            board2.position(game.fen());
+                            updateStatus();
+                            updateGraveyards();
+                            updateMoveHistory();
+                            renderTimers();
+                        }
+                        $('#thinking').removeClass('active');
+                        if (!game.game_over()) {
+                            unlockBoard();
+                        }
+                    }, 300);
                 }
-                
-                // Absolute clone for animation
-                var clone = $('<img src="' + pieceTheme + '" style="position: absolute; z-index: 9999; pointer-events: none;">');
-                clone.css({
-                    top: startOffset.top,
-                    left: startOffset.left,
-                    width: pieceImg.width() || squareEl.width()
-                });
-                $('body').append(clone);
-                
-                clone.animate({
-                    top: targetOffset.top,
-                    left: targetOffset.left,
-                    width: 40,
-                    height: 40
-                }, 400, 'swing', function() {
-                    placeholder.removeClass('opacity-0');
-                    clone.remove();
-                    updateGraveyards(); // Sync data strictly
-                });
+
+                if (gameMode === 'online') {
+                    sendMove(moveObj);
+                    if (!game.game_over()) {
+                        lockBoard();
+                    }
+                }
             }
 
             function attemptMove(source, target, isDragDrop) {
-                var move = game.move({
-                    from: source,
-                    to: target,
-                    promotion: 'q'
-                });
+                if (!canPlayerMove()) return false;
 
-                if (move === null) return false; // Illegal move
+                var moveObj = { from: source, to: target, promotion: 'q' };
+                var move = game.move(moveObj);
 
-                // Handle Capture Animation
-                if (move.captured) {
-                    var capturedColor = move.color === 'w' ? 'b' : 'w';
-                    var captureSquare = target;
-                    if (move.flags.indexOf('e') !== -1) {
-                        captureSquare = target[0] + source[1]; // En passant square fix
-                    }
-                    animateCaptureToGraveyard(captureSquare, capturedColor, move.captured);
-                }
+                if (move === null) return false;
 
                 updateStatus();
+                updateGraveyards();
                 updateMoveHistory();
 
                 if (!isDragDrop) {
                     board2.position(game.fen());
                 }
+
+                afterHumanMove(move);
                 return true;
             }
 
             // --- CLICK LOGIC ---
-            $('#board2').on('click', '.square-55d63', function() {
-                if (game.game_over()) return;
+            $('#board2').on('click', '.square-55d63', function () {
+                if (game.game_over() || boardLocked) return;
+                if (!canPlayerMove()) return;
 
                 var square = $(this).attr('data-square');
 
@@ -411,11 +2172,7 @@
                     }
 
                     var success = attemptMove(selectedSquare, square, false);
-                    if (success) {
-                        clearHighlights();
-                    } else {
-                        clearHighlights();
-                    }
+                    clearHighlights();
                 } else {
                     var piece = game.get(square);
                     if (piece && piece.color === game.turn()) {
@@ -429,68 +2186,152 @@
                 selectedSquare = square;
                 $('#board2 .square-' + square).addClass('selected-square');
 
-                var moves = game.moves({
-                    square: square,
-                    verbose: true
-                });
-
+                var moves = game.moves({ square: square, verbose: true });
                 for (var i = 0; i < moves.length; i++) {
                     $('#board2 .square-' + moves[i].to).addClass('highlight');
                 }
             }
 
-            function updateStatus () {
-                var statusHTML = '';
-                var moveColor = game.turn() === 'b' ? 'Black' : 'White';
+            // =========================================================
+            //  DYNAMIC BOARD SIZING — fits any viewport
+            // =========================================================
+            window.computeBoardSize = function () {
+                var vh = window.innerHeight;
+                var vw = window.innerWidth;
 
-                if (game.in_checkmate()) {
-                    statusHTML = 'Game over, ' + moveColor + ' is in checkmate.';
-                } else if (game.in_draw()) {
-                    statusHTML = 'Game over, drawn position';
+                // Reserve space for all UI elements around the board
+                var headerReserve, timersReserve, controlBarReserve, paddingReserve;
+
+                if (vh <= 550) {
+                    // Very short: badge hidden, header hidden
+                    headerReserve = 30;
+                    timersReserve = 56;
+                    controlBarReserve = 42;
+                    paddingReserve = 30;
+                } else if (vh <= 700) {
+                    // Short: title/subtitle hidden
+                    headerReserve = 48;
+                    timersReserve = 60;
+                    controlBarReserve = 48;
+                    paddingReserve = 40;
+                } else if (vw <= 768) {
+                    // Mobile width
+                    headerReserve = 80;
+                    timersReserve = 64;
+                    controlBarReserve = 50;
+                    paddingReserve = 24;
                 } else {
-                    statusHTML = moveColor + ' to move';
-                    if (game.in_check()) {
-                        statusHTML += ', ' + moveColor + ' is in check';
-                    }
+                    // Desktop
+                    headerReserve = 100;
+                    timersReserve = 68;
+                    controlBarReserve = 56;
+                    paddingReserve = 30;
                 }
-                $status.html(statusHTML);
-            }
 
-            var board2 = Chessboard('board2', {
-                draggable: false, // Enforces click-to-move only
+                var fileLabelsReserve = 22;
+                var maxByHeight = vh - headerReserve - timersReserve - fileLabelsReserve - controlBarReserve - paddingReserve;
+                var maxByWidth = vw - 40;
+
+                // If side panels are visible (>900px), reserve space for them
+                if (vw > 900) {
+                    maxByWidth = vw - 600;
+                }
+
+                var boardSize = Math.min(maxByHeight, maxByWidth);
+                boardSize = Math.max(boardSize, 200);
+                boardSize = Math.min(boardSize, 560);
+                boardSize = Math.floor(boardSize);
+
+                // Set CSS variable for timer-bar, graveyards, etc.
+                document.documentElement.style.setProperty('--board-size', boardSize + 'px');
+
+                // Size the board element
+                var boardEl = document.getElementById('board2');
+                if (boardEl) {
+                    boardEl.style.width = boardSize + 'px';
+                    boardEl.style.height = boardSize + 'px';
+                }
+
+                // Size rank labels height to match board
+                var rankLabels = document.getElementById('rank-labels');
+                if (rankLabels) {
+                    rankLabels.style.height = boardSize + 'px';
+                }
+
+                // Size file labels width to match board
+                var fileLabels = document.getElementById('file-labels');
+                if (fileLabels) {
+                    fileLabels.style.width = boardSize + 'px';
+                }
+
+                // Resize chessboard.js widget
+                if (typeof board2 !== 'undefined' && board2.resize) {
+                    board2.resize();
+                }
+            };
+
+            window.board2 = Chessboard('board2', {
+                draggable: false,
                 position: 'start',
-                showNotation: false, // Turned off internal notation to use external coordinates
+                showNotation: false,
                 pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
             });
 
-            // Adjust board explicitly right after init to guarantee proper rendering size
-            board2.resize(); 
-
+            computeBoardSize();
             updateStatus();
             updateGraveyards();
             updateMoveHistory();
 
-            $('#startBtn').on('click', function() {
+            window.resetGame = function () {
                 game.reset();
                 board2.start();
                 clearHighlights();
                 updateStatus();
                 updateGraveyards();
                 updateMoveHistory();
+                unlockBoard();
+                $('#thinking').removeClass('active');
+                resetTimers();
+                showTimers();
+                startTimer();
+            };
+
+            $('#startBtn').on('click', function () {
+                resetGame();
+                if (gameMode === 'online' && peerConn && peerConn.open) {
+                    peerConn.send({ type: 'restart' });
+                }
             });
-            
-            $('#undoBtn').on('click', function() {
-                game.undo();
+
+            $('#undoBtn').on('click', function () {
+                if (gameMode === 'ai') {
+                    game.undo();
+                    game.undo();
+                } else if (gameMode === 'online') {
+                    return;
+                } else {
+                    game.undo();
+                }
                 board2.position(game.fen());
                 clearHighlights();
                 updateStatus();
                 updateGraveyards();
                 updateMoveHistory();
+                unlockBoard();
+                $('#thinking').removeClass('active');
+                renderTimers();
             });
 
-            // Handle window resize dynamically to keep layout intact
-            $(window).resize(board2.resize);
+            // Debounced resize handler — recomputes board size on any viewport change
+            var resizeTimer = null;
+            $(window).resize(function () {
+                if (resizeTimer) clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(function () {
+                    computeBoardSize();
+                }, 150);
+            });
         });
     </script>
 </body>
+
 </html>

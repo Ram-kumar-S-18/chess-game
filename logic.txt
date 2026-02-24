@@ -1,0 +1,96 @@
+================================================================================
+  CHESS MASTER — ONLINE MULTIPLAYER (PLAY WITH FRIEND) LOGIC
+================================================================================
+
+1. HOW IT WORKS
+----------------
+
+  The online multiplayer uses PeerJS, a library that enables peer-to-peer
+  (P2P) connections between browsers using WebRTC technology. This means
+  two players connect DIRECTLY to each other — no server or backend is
+  needed to relay moves.
+
+
+2. CREATE ROOM FLOW
+--------------------
+
+  Step 1: Player A clicks "Play with Friend" → "Create Room"
+  Step 2: The app generates a random 6-character room code (e.g., "K7HN3M")
+  Step 3: A PeerJS peer is created with ID "chess-K7HN3M"
+  Step 4: The app waits for another player to connect
+  Step 5: Player A shares the code with their friend (via text, chat, etc.)
+
+  Player A becomes the HOST and plays as White.
+
+
+3. JOIN ROOM FLOW
+------------------
+
+  Step 1: Player B clicks "Play with Friend"
+  Step 2: Player B types the 6-character code their friend shared
+  Step 3: Player B clicks "Join Room"
+  Step 4: A PeerJS peer is created for Player B
+  Step 5: Player B connects to Player A's peer using the code
+  Step 6: Once connected, both players see "Connected! Starting game..."
+
+  Player B becomes the JOINER and plays as Black.
+
+
+4. MOVE SYNCHRONIZATION
+-------------------------
+
+  - When a player makes a move, the move object is sent to the opponent
+    via the PeerJS data channel.
+  - The opponent's chess.js engine applies the move, and the board updates.
+  - Each player can only move their own color pieces (board is locked
+    during the opponent's turn).
+  - On game restart, a "restart" message is sent so both boards reset.
+
+
+5. CAN EVERY USER USE THIS?
+-----------------------------
+
+  YES — with some conditions:
+
+  ✅ Works for ANY user who opens the index.html file in a modern browser
+     (Chrome, Firefox, Edge, Safari).
+
+  ✅ Both players must have an internet connection (the PeerJS cloud server
+     is used for initial peer discovery — it's free and public).
+
+  ✅ No sign-up, no login, no account needed.
+
+  ✅ Works across different networks (Player A at home, Player B at their
+     home — as long as both have internet).
+
+  ⚠️ LIMITATIONS:
+     - Both players must be online at the same time.
+     - The PeerJS public server (0.peerjs.com) is used for signaling.
+       If that server is down, connections won't work. For production use,
+       you could host your own PeerJS server.
+     - Very strict firewalls or corporate networks may block WebRTC
+       connections, but this is rare for home/mobile networks.
+     - The room code is temporary — it only lasts while the creator's
+       browser tab is open. Closing the tab destroys the room.
+
+
+6. TECHNOLOGY STACK
+--------------------
+
+  Library : PeerJS v1.5.4 (loaded from CDN)
+  Protocol: WebRTC (peer-to-peer, encrypted)
+  Signaling: PeerJS public cloud server (free)
+  Data sent: Move objects { from, to, promotion } and restart signals
+  No backend, no database, no server code required.
+
+
+7. SECURITY NOTES
+------------------
+
+  - WebRTC connections are encrypted (DTLS + SRTP).
+  - Room codes are randomly generated and short-lived.
+  - No personal data is transmitted — only chess move data.
+  - There is no authentication; anyone with the code can join.
+    For added security, share codes privately.
+
+================================================================================
