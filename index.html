@@ -496,6 +496,66 @@
             transform: translateY(1px);
         }
 
+        /* ===== GAME NAV BAR (top control bar) ===== */
+        .game-nav-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            padding: 6px 16px;
+            background: linear-gradient(180deg, #3e210c 0%, #2c1608 100%);
+            border-bottom: 2px solid #1a0b03;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+            box-sizing: border-box;
+        }
+
+        .nav-center {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 1;
+            justify-content: center;
+        }
+
+        .nav-center .mode-badge {
+            margin: 0;
+        }
+
+        .nav-center .status-text {
+            margin: 0;
+            font-size: 1rem;
+        }
+
+        .nav-right {
+            display: flex;
+            gap: 6px;
+        }
+
+        .nav-btn {
+            background: #47260e;
+            color: #dcb68a;
+            border: 1px solid #2a1605;
+            padding: 5px 14px;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 0.82rem;
+            transition: all 0.15s ease;
+            box-shadow: inset 0px 1px 1px rgba(255, 255, 255, 0.1), 0px 2px 4px rgba(0, 0, 0, 0.4);
+            cursor: pointer;
+            font-family: inherit;
+            white-space: nowrap;
+        }
+
+        .nav-btn:hover {
+            background: #563013;
+            color: #ffffff;
+        }
+
+        .nav-btn:active {
+            box-shadow: inset 0px 2px 5px rgba(0, 0, 0, 0.7);
+            transform: translateY(1px);
+        }
+
         .graveyard,
         .history-panel {
             background-color: #21252b;
@@ -1220,18 +1280,27 @@
     </div>
 
     <!-- ===== GAME SCREEN ===== -->
-    <div id="game-screen" class="flex-1 flex flex-col items-center justify-between w-full">
+    <div id="game-screen" class="flex-1 flex flex-col items-center w-full">
 
-        <!-- Header -->
-        <div class="flex-none text-center">
-            <div id="mode-badge" class="mode-badge"></div>
-            <h1 class="title-text">Chess Master</h1>
-            <p class="subtitle-text" id="game-subtitle">Click pieces to move.</p>
-            <div id="status" class="status-text">White to move</div>
-            <div class="thinking-indicator" id="thinking">
-                AI is thinking
-                <span class="thinking-dots"><span></span><span></span><span></span></span>
+        <!-- Top Nav Bar (control bar moved here) -->
+        <div id="game-nav" class="flex-none w-full">
+            <div class="game-nav-bar">
+                <button id="menuBtn" class="nav-btn" onclick="backToMenu()">☰ Menu</button>
+                <div class="nav-center">
+                    <div id="mode-badge" class="mode-badge"></div>
+                    <div id="status" class="status-text">White to move</div>
+                    <div class="thinking-indicator" id="thinking">
+                        AI is thinking
+                        <span class="thinking-dots"><span></span><span></span><span></span></span>
+                    </div>
+                </div>
+                <div class="nav-right">
+                    <button id="startBtn" class="nav-btn">⟳ Restart</button>
+                    <button id="undoBtn" class="nav-btn">↩ Undo</button>
+                </div>
             </div>
+            <p class="subtitle-text" id="game-subtitle" style="text-align:center; margin:0; padding:2px 0;">Click pieces
+                to move.</p>
         </div>
 
         <!-- Main Game Area -->
@@ -1285,15 +1354,6 @@
                     <div class="history-title">Move History</div>
                     <div class="history-list" id="history-list"></div>
                 </div>
-            </div>
-        </div>
-
-        <!-- Control Bar -->
-        <div class="flex-none mb-2">
-            <div class="wood-panel">
-                <button id="menuBtn" class="wood-btn" onclick="backToMenu()">☰ Menu</button>
-                <button id="startBtn" class="wood-btn">Restart Game</button>
-                <button id="undoBtn" class="wood-btn">Undo Move</button>
             </div>
         </div>
     </div>
@@ -2199,70 +2259,41 @@
                 var vh = window.innerHeight;
                 var vw = window.innerWidth;
 
-                // Reserve space for all UI elements around the board
-                var headerReserve, timersReserve, controlBarReserve, paddingReserve;
+                var boardEl = document.getElementById('board2');
+                var rankLabels = document.getElementById('rank-labels');
+                var fileLabels = document.getElementById('file-labels');
+                if (!boardEl) return;
 
-                if (vh <= 550) {
-                    // Very short: badge hidden, header hidden
-                    headerReserve = 30;
-                    timersReserve = 56;
-                    controlBarReserve = 42;
-                    paddingReserve = 30;
-                } else if (vh <= 700) {
-                    // Short: title/subtitle hidden
-                    headerReserve = 48;
-                    timersReserve = 60;
-                    controlBarReserve = 48;
-                    paddingReserve = 40;
-                } else if (vw <= 768) {
-                    // Mobile width
-                    headerReserve = 80;
-                    timersReserve = 64;
-                    controlBarReserve = 50;
-                    paddingReserve = 24;
-                } else {
-                    // Desktop
-                    headerReserve = 100;
-                    timersReserve = 68;
-                    controlBarReserve = 56;
-                    paddingReserve = 30;
-                }
+                // Measure the actual nav bar height from the DOM
+                var navBar = document.getElementById('game-nav');
+                var navHeight = navBar ? navBar.offsetHeight : 60;
 
-                var fileLabelsReserve = 22;
-                var maxByHeight = vh - headerReserve - timersReserve - fileLabelsReserve - controlBarReserve - paddingReserve;
-                var maxByWidth = vw - 40;
+                // Fixed reserves: timers (2x ~30px), file labels (~20px),
+                // body padding (py-4 = 32px), breathing room (16px)
+                var timersReserve = 60;
+                var fileLabelsReserve = 20;
+                var bodyPadding = 32;
+                var breathing = 40;
 
-                // If side panels are visible (>900px), reserve space for them
+                var availHeight = vh - navHeight - timersReserve - fileLabelsReserve - bodyPadding - breathing;
+                var availWidth = vw - 60; // side margins
+
+                // If side panels visible (>900px), reserve width
                 if (vw > 900) {
-                    maxByWidth = vw - 600;
+                    availWidth = vw - 580;
                 }
 
-                var boardSize = Math.min(maxByHeight, maxByWidth);
+                var boardSize = Math.min(availHeight, availWidth);
                 boardSize = Math.max(boardSize, 200);
                 boardSize = Math.min(boardSize, 560);
                 boardSize = Math.floor(boardSize);
 
-                // Set CSS variable for timer-bar, graveyards, etc.
+                // Apply
                 document.documentElement.style.setProperty('--board-size', boardSize + 'px');
-
-                // Size the board element
-                var boardEl = document.getElementById('board2');
-                if (boardEl) {
-                    boardEl.style.width = boardSize + 'px';
-                    boardEl.style.height = boardSize + 'px';
-                }
-
-                // Size rank labels height to match board
-                var rankLabels = document.getElementById('rank-labels');
-                if (rankLabels) {
-                    rankLabels.style.height = boardSize + 'px';
-                }
-
-                // Size file labels width to match board
-                var fileLabels = document.getElementById('file-labels');
-                if (fileLabels) {
-                    fileLabels.style.width = boardSize + 'px';
-                }
+                boardEl.style.width = boardSize + 'px';
+                boardEl.style.height = boardSize + 'px';
+                if (rankLabels) rankLabels.style.height = boardSize + 'px';
+                if (fileLabels) fileLabels.style.width = boardSize + 'px';
 
                 // Resize chessboard.js widget
                 if (typeof board2 !== 'undefined' && board2.resize) {
